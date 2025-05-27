@@ -11,6 +11,7 @@ let dotDensity = 1.0;
 let baseLineThickness = 1;
 let baseLineLength = 6;
 
+
 let mainHue = 0;
 
 let curveTypes = []
@@ -27,14 +28,16 @@ let nowAlpha = 0;
 
 let bowls = [];
 
-// Placeholder easing functions (you'll need to implement or import these)
+// --- MISSING FUNCTION DEFINITIONS START HERE ---
+
+// Easing Functions - Standard implementations for common easing types
 function easeOutSine(t) { return sin(t * PI / 2); }
 function easeOutCubic(t) { return 1 - pow(1 - t, 3); }
 function easeOutQuart(t) { return 1 - pow(1 - t, 4); }
 function easeOutQuint(t) { return 1 - pow(1 - t, 5); }
 function easeOutExpo(t) { return t === 1 ? 1 : 1 - pow(2, -10 * t); }
 function easeInOutSine(t) { return -(cos(PI * t) - 1) / 2; }
-function easeInOutBounce(t) { return t < 0.5 ? easeInBounce(t * 2) / 2 : easeOutBounce(t * 2 - 1) / 2 + 0.5; } // Requires easeInBounce
+function easeInBounce(t) { return 1 - easeOutBounce(1 - t); } // Helper for easeInOutBounce
 function easeOutBounce(t) {
     const n1 = 7.5625;
     const d1 = 2.75;
@@ -48,11 +51,9 @@ function easeOutBounce(t) {
         return n1 * (t -= 2.625 / d1) * t + 0.984375;
     }
 }
-// You'll need to define easeInBounce for easeInOutBounce
-function easeInBounce(t) {
-    return 1 - easeOutBounce(1 - t);
+function easeInOutBounce(t) {
+    return t < 0.5 ? easeInBounce(t * 2) / 2 : easeOutBounce(t * 2 - 1) / 2 + 0.5;
 }
-
 function easeOutElastic(t) {
     const c4 = (2 * PI) / 3;
     return t === 0 ? 0 : t === 1 ? 1 : pow(2, -10 * t) * sin((t * 10 - 0.75) * c4) + 1;
@@ -64,44 +65,49 @@ function easeOutBack(t) {
     return 1 + c3 * pow(t - 1, 3) + c1 * pow(t - 1, 2);
 }
 
-// Placeholder for your custom drawing functions
+// Custom Drawing Functions - Basic implementations, adjust as needed
 function processHue(hue) {
-    return (hue + 360) % 360;
+    return (hue + 360) % 360; // Ensures hue stays within 0-360 range
 }
 
 function NYSetColorLerp(hueA, satA, briA, hueB, satB, briB, t) {
+    // Lerp colors between A and B based on t
     nowHue = lerp(hueA, hueB, t);
     nowSat = lerp(satA, satB, t);
     nowBri = lerp(briA, briB, t);
-    stroke(nowHue, nowSat, nowBri, nowAlpha);
-    fill(nowHue, nowSat, nowBri, nowAlpha);
+    // Assumes nowAlpha is set elsewhere or defaults to 1
+    stroke(nowHue, nowSat, nowBri, 100); // Use 100 for full opacity in HSB by default
+    fill(nowHue, nowSat, nowBri, 100);   // Use 100 for full opacity in HSB by default
+    noFill(); // Lines are drawn with stroke, so often noFill is desired
 }
 
 function NYDotLine(x1, y1, x2, y2) {
     let dist = p5.Vector.dist(createVector(x1, y1), createVector(x2, y2));
-    let numDots = max(1, floor(dist * dotDensity));
+    let numDots = max(1, floor(dist * dotDensity)); // Ensure at least one dot
     for (let i = 0; i < numDots; i++) {
         let t = i / (numDots - 1);
         let x = lerp(x1, x2, t);
         let y = lerp(y1, y2, t);
 
-        let nX = noise(x * noiseScaleX, y * noiseScaleY);
-        let nY = noise(x * noiseScaleX + 1000, y * noiseScaleY + 1000);
+        // Add noise to position for organic feel
+        let offsetX = map(noise(x * noiseScaleX, y * noiseScaleY), 0, 1, -baseLineLength / 4, baseLineLength / 4);
+        let offsetY = map(noise(x * noiseScaleX + 1000, y * noiseScaleY + 1000), 0, 1, -baseLineLength / 4, baseLineLength / 4);
 
-        let thickness = baseLineThickness * (0.5 + 0.5 * nX);
-        let length = baseLineLength * (0.5 + 0.5 * nY);
+        let thickness = baseLineThickness * map(noise(x * 0.01, y * 0.01), 0, 1, 0.5, 1.5); // Vary thickness
+        let length = baseLineLength * map(noise(x * 0.01 + 2000, y * 0.01 + 2000), 0, 1, 0.7, 1.3); // Vary length
 
-        let angle = atan2(y2 - y1, x2 - x1);
+        let angle = atan2(y2 - y1, x2 - x1); // Angle of the main line segment
         push();
-        translate(x, y);
-        rotate(angle + map(noise(x * 0.01, y * 0.01), 0, 1, -PI/4, PI/4)); // Add some noise to the angle
+        translate(x + offsetX, y + offsetY);
+        rotate(angle + map(noise(x * 0.005, y * 0.005), 0, 1, -PI / 8, PI / 8)); // Add some noise to rotation
         strokeWeight(thickness);
-        line(-length / 2, 0, length / 2, 0);
+        line(-length / 2, 0, length / 2, 0); // Draw a short line segment
         pop();
     }
 }
 
-// Placeholder for PlantBowl class
+
+// --- PLANTBOWL CLASS DEFINITION ---
 class PlantBowl {
     constructor(x, y, w, h) {
         this.x = x;
@@ -129,9 +135,12 @@ class PlantBowl {
         for (let i = 0; i < steps; i++) {
             let t = i / (steps - 1);
             let y = bowlRectY + t * bowlHeight;
-            NYSetColorLerp(this.bowlColor, 30, 20, this.bowlColor, 60, 80, t);
+
+            // Make bowl color slightly darker towards the bottom
+            let currentBri = lerp(80, 40, t);
+            NYSetColorLerp(this.bowlColor, 60, currentBri, this.bowlColor, 60, currentBri, 0);
             NYDotLine(bowlRectX, y, bowlRectX + bowlWidth, y);
-            if (i % 5 === 0) await sleep(1);
+            if (i % 5 === 0) await sleep(1); // Introduce small delay for drawing effect
         }
     }
 
@@ -139,33 +148,37 @@ class PlantBowl {
         let bowlCenterY = this.y + this.h * random(0.6, 0.9);
         let bowlRadius = min(this.w, this.h) * random(0.2, 0.4);
 
-        let steps = bowlRadius * 2 * lineDensity;
+        // Draw multiple horizontal lines to form the circle
+        let steps = floor(bowlRadius * 2 * lineDensity); // Number of horizontal lines
         for (let i = 0; i < steps; i++) {
             let t = i / (steps - 1);
             let y = bowlCenterY - bowlRadius + t * bowlRadius * 2;
-            let xOffset = sqrt(pow(bowlRadius, 2) - pow(y - bowlCenterY, 2));
+            let xOffset = sqrt(pow(bowlRadius, 2) - pow(y - bowlCenterY, 2)); // Calculate width at current y
 
-            NYSetColorLerp(this.bowlColor, 30, 20, this.bowlColor, 60, 80, t);
-            if (!isNaN(xOffset)) {
-                NYDotLine(this.x + this.w / 2 - xOffset, y, this.x + this.w / 2 + xOffset, y);
-            }
-            if (i % 5 === 0) await sleep(1);
+            // Skip if xOffset is NaN (outside circle bounds due to float precision)
+            if (isNaN(xOffset)) continue;
+
+            // Make bowl color slightly darker towards the bottom
+            let currentBri = lerp(80, 40, t);
+            NYSetColorLerp(this.bowlColor, 60, currentBri, this.bowlColor, 60, currentBri, 0);
+            NYDotLine(this.x + this.w / 2 - xOffset, y, this.x + this.w / 2 + xOffset, y);
+            if (i % 5 === 0) await sleep(1); // Introduce small delay for drawing effect
         }
     }
 
     drawPlant() {
         let plantCenterX = this.x + this.w / 2;
-        let plantCenterY = this.y + this.h / 2;
+        let plantCenterY = this.y + this.h * 0.4; // Place plant slightly higher than center of bowl bounding box
 
         let chosenCurveType = random(curveTypes);
 
         for (let l = 0; l < this.layers; l++) {
             let layerProgress = l / (this.layers - 1);
-            let layerAngleOffset = random(PI * 2);
+            let layerAngleOffset = random(PI * 2); // Random starting angle for each layer
 
             for (let i = 0; i < this.countPerLayer; i++) {
                 let angle = map(i, 0, this.countPerLayer, 0, PI * 2) + layerAngleOffset;
-                let radius = lerp(this.plantSize * 0.1, this.plantSize, layerProgress);
+                let radius = lerp(this.plantSize * 0.1, this.plantSize * 0.8, layerProgress); // Inner layers are smaller
 
                 let leafX = plantCenterX + cos(angle) * radius;
                 let leafY = plantCenterY + sin(angle) * radius;
@@ -176,240 +189,15 @@ class PlantBowl {
     }
 
     drawLeaf(x1, y1, x2, y2, width, angle, curveFunction) {
-        let numLines = width * lineDensity;
+        let numLines = max(1, floor(width * lineDensity)); // Ensure at least one line for the leaf
         let mainColor = this.plantHue;
 
         for (let i = 0; i < numLines; i++) {
             let t = i / (numLines - 1);
-            let offset = map(curveFunction(t), 0, 1, -width / 2, width / 2);
+            let offset = map(curveFunction(t), 0, 1, -width / 2, width / 2); // Apply easing to offset for leaf shape
 
-            let hue = processHue(mainColor + map(noise(t * leafNoiseScale), 0, 1, -20, 20));
-            let sat = map(t, 0, 1, 60, 90);
-            let bri = map(noise(t * leafNoiseScale + 100), 0, 1, 70, 90);
+            let hue = processHue(mainColor + map(noise(t * leafNoiseScale, frameCount * 0.001), 0, 1, -20, 20)); // Subtle hue variation
+            let sat = map(t, 0, 1, 60, 90); // Saturation increases towards tip
+            let bri = map(noise(t * leafNoiseScale + 100, frameCount * 0.001), 0, 1, 70, 90); // Brightness variation
 
-            NYSetColorLerp(hue, sat, bri, hue, sat, bri, 0); // No lerp for now, just set color
-
-            let p1x = x1;
-            let p1y = y1;
-            let p2x = x2;
-            let p2y = y2;
-
-            let perpAngle = angle + HALF_PI;
-
-            // Offset points to create leaf shape
-            let startX = p1x + cos(perpAngle) * offset;
-            let startY = p1y + sin(perpAngle) * offset;
-            let endX = p2x + cos(perpAngle) * offset;
-            let endY = p2y + sin(perpAngle) * offset;
-
-            NYDotLine(startX, startY, endX, endY);
-        }
-    }
-}
-
-
-async function setup() {
-    let paddingRatio = 0.1;
-    createCanvas(windowWidth, windowHeight);
-    describe("This artwork draws inspiration from potted succulent plants found on the streets. It integrates recursive algorithms to make the layout and uses easing functions to create the leaf shapes.");
-
-    colorMode(HSB);
-    pixelDensity(drawDensity);
-    background(20);
-
-    dotDensity = random(0.05, 0.3);
-    lineDensity = random(0.4, 0.8);
-
-    noiseScaleX = random(0.0001, 0.01);
-    noiseScaleY = random(0.0001, 0.01);
-
-    baseLineThickness = random(1, 6);
-    baseLineLength = random(6, 12);
-
-    mainHue = random(0, 360);
-
-    curveTypes.push(easeOutSine);
-    curveTypes.push(easeOutCubic);
-    curveTypes.push(easeOutQuart);
-    curveTypes.push(easeOutQuint);
-    curveTypes.push(easeOutExpo);
-    curveTypes.push(easeInOutSine);
-    curveTypes.push(easeInOutBounce);
-    curveTypes.push(easeOutBounce);
-    curveTypes.push(easeOutElastic);
-    curveTypes.push(easeInSine);
-    curveTypes.push(easeOutBack);
-
-    // draw bg with code
-    let bgHueA = processHue(mainHue + random(-10, 10));
-    let bgHueB = processHue(mainHue + random(-10, 10));
-    let bgSatA = random(0, 20);
-    let bgSatB = random(0, 20);
-    let bgBriA = random(5, 25);
-    let bgBriB = random(5, 25);
-
-    if (random() < 0.5) {
-        bgBriA = random(20, 40);
-        bgBriB = random(20, 40);
-    }
-    let bgLineCount = height * lineDensity;
-
-    // let bgDensity = 0.06;
-    let lastDotDensity = dotDensity;
-    // dotDensity = bgDensity;
-    for (let y = 0; y < bgLineCount; y++) {
-        let t = y / (bgLineCount - 1);
-        let nowY = height * t;
-
-        NYSetColorLerp(bgHueA, bgSatA, bgBriA, bgHueB, bgSatB, bgBriB, t);
-        NYDotLine(0, nowY, width, nowY);
-
-        if (y % 10 == 0)
-            await sleep(1);
-    }
-    dotDensity = lastDotDensity;
-
-    let xCount = floor(random(1, 3));
-    let yCount = floor(random(1, 3));
-
-    let padding = min(width, height) * paddingRatio;
-
-    let rectWidth = (width - 2 * padding) / xCount;
-    let rectHeight = (height - 2 * padding) / yCount;
-
-    for (let x = 0; x < xCount; x++) {
-        for (let y = 0; y < yCount; y++) {
-
-            let startX = rectWidth * x + padding;
-            let startY = rectHeight * y + padding;
-
-            let plantX = startX + random(rectWidth * 0.2, rectWidth * 0.8);
-            let plantY = startY + random(rectHeight * 0.2, rectHeight * 0.8);
-
-            let plantSize = min(rectWidth, rectHeight) * random(0.3, 0.6);
-            let leafWidth = plantSize * random(0.2, 0.8);
-
-            let layers = floor(random(3, 12));
-            let countPerLayer = floor(random(3, 24));
-
-            let rects = SubdivideRect(startX, startY, rectWidth, rectHeight, 0);
-
-            for (let r = 0; r < rects.length; r++) {
-                let rectObj = rects[r];
-
-                let bowlX = rectObj.x;
-                let bowlY = rectObj.y;
-                let bowlWidth = rectObj.w;
-                let bowlHeight = rectObj.h;
-
-                let newBowl = new PlantBowl(bowlX, bowlY, bowlWidth, bowlHeight);
-                bowls.push(newBowl);
-            }
-        }
-    }
-
-    for (let i = 0; i < bowls.length; i++) {
-
-        if (bowls[i].bowlType == 3) // empty bowl
-            continue;
-
-        if (bowls[i].bowlType <= 1) // rect
-        {
-            await bowls[i].drawBowlRect();
-        }
-        else if (bowls[i].bowlType == 2) // circle
-        {
-            await bowls[i].drawBowlRound();
-        }
-
-        await sleep(1);
-    }
-
-    // sort: small bowl draw first
-    bowls.sort(function (a, b) {
-        if (a.plantSize < b.plantSize)
-            return -1;
-        else if (a.plantSize > b.plantSize)
-            return 1;
-        else
-            return 0;
-    });
-
-    for (let i = 0; i < bowls.length; i++) {
-        if (bowls[i].bowlType == 3) // empty bowl
-            continue;
-
-        bowls[i].drawPlant();
-        await sleep(1);
-    }
-}
-
-
-function SubdivideRect(_x, _y, _width, _height, _depth) {
-
-    let doSplit = random(0, 1) < 0.9;
-
-    if (_depth == 0)
-        doSplit = true;
-
-    if (min(_width, _height) < 120) {
-        doSplit = false;
-    }
-
-    if (doSplit) {
-        let splitRatio = random(0.4, 0.6);
-
-        // split X
-        if (random() < 0.5) {
-            let rectA_x = _x;
-            let rectA_y = _y;
-            let rectA_width = _width * splitRatio;
-            let rectA_height = _height;
-
-            let rectB_x = _x + _width * splitRatio;
-            let rectB_y = _y;
-            let rectB_width = _width * (1 - splitRatio);
-            let rectB_height = _height;
-
-            let rectA = SubdivideRect(rectA_x, rectA_y, rectA_width, rectA_height, _depth + 1);
-            let rectB = SubdivideRect(rectB_x, rectB_y, rectB_width, rectB_height, _depth + 1);
-
-            return rectA.concat(rectB);
-        }
-        // split Y
-        else {
-            let rectA_x = _x;
-            let rectA_y = _y;
-            let rectA_width = _width;
-            let rectA_height = _height * splitRatio;
-
-            let rectB_x = _x;
-            let rectB_y = _y + _height * splitRatio;
-            let rectB_width = _width;
-            let rectB_height = _height * (1 - splitRatio);
-
-            let rectA = SubdivideRect(rectA_x, rectA_y, rectA_width, rectA_height, _depth + 1);
-            let rectB = SubdivideRect(rectB_x, rectB_y, rectB_width, rectB_height, _depth + 1);
-
-            return rectA.concat(rectB);
-        }
-    }
-    else {
-        return [{ x: _x, y: _y, w: _width, h: _height, depth: _depth }];
-    }
-}
-
-function draw() {
-    // Your draw loop if needed for animation, currently empty.
-}
-
-
-function sleep(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-function keyPressed(e) {
-    if (e.key == 's') {
-        saveCanvas(`succulent-${width}-${height}-${fxhash}.png`);
-    }
-}
+            NYSetColorLerp(hue, sat, bri, hue, sat,
