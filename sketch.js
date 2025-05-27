@@ -200,4 +200,180 @@ class PlantBowl {
             let sat = map(t, 0, 1, 60, 90); // Saturation increases towards tip
             let bri = map(noise(t * leafNoiseScale + 100, frameCount * 0.001), 0, 1, 70, 90); // Brightness variation
 
-            NYSetColorLerp(hue, sat, bri, hue, sat,
+            NYSetColorLerp(hue, sat, bri, hue, sat, bri, 0); // Set current color, no lerp across line here
+
+            let perpAngle = angle + HALF_PI; // Perpendicular to the main leaf direction
+
+            // Calculate start and end points for the current "dot line" segment of the leaf
+            let startX = x1 + cos(perpAngle) * offset;
+            let startY = y1 + sin(perpAngle) * offset;
+            let endX = x2 + cos(perpAngle) * offset;
+            let endY = y2 + sin(perpAngle) * offset;
+
+            NYDotLine(startX, startY, endX, endY);
+        }
+    }
+}
+
+// --- P5.JS CORE FUNCTIONS ---
+
+async function setup() {
+    let paddingRatio = 0.1;
+    createCanvas(windowWidth, windowHeight);
+    describe("This artwork draws inspiration from potted succulent plants found on the streets. It integrates recursive algorithms to make the layout and uses easing functions to create the leaf shapes.");
+
+    colorMode(HSB);
+    pixelDensity(drawDensity);
+    background(20); // Dark background
+
+    dotDensity = random(0.05, 0.3);
+    lineDensity = random(0.4, 0.8);
+
+    noiseScaleX = random(0.0001, 0.01);
+    noiseScaleY = random(0.0001, 0.01);
+
+    baseLineThickness = random(1, 6);
+    baseLineLength = random(6, 12);
+
+    mainHue = random(0, 360);
+
+    // Populate curveTypes array with the defined easing functions
+    curveTypes.push(easeOutSine);
+    curveTypes.push(easeOutCubic);
+    curveTypes.push(easeOutQuart);
+    curveTypes.push(easeOutQuint);
+    curveTypes.push(easeOutExpo);
+    curveTypes.push(easeInOutSine);
+    curveTypes.push(easeInOutBounce);
+    curveTypes.push(easeOutBounce);
+    curveTypes.push(easeOutElastic);
+    curveTypes.push(easeInSine);
+    curveTypes.push(easeOutBack);
+
+    // Draw background with animated lines
+    let bgHueA = processHue(mainHue + random(-10, 10));
+    let bgHueB = processHue(mainHue + random(-10, 10));
+    let bgSatA = random(0, 20);
+    let bgSatB = random(0, 20);
+    let bgBriA = random(5, 25);
+    let bgBriB = random(5, 25);
+
+    if (random() < 0.5) { // Sometimes make background brighter
+        bgBriA = random(20, 40);
+        bgBriB = random(20, 40);
+    }
+    let bgLineCount = height * lineDensity;
+
+    let lastDotDensity = dotDensity; // Save original dot density
+    // You might want to adjust dotDensity for background lines specifically if it's too sparse
+    // dotDensity = 0.06; // Example of a different density for background
+
+    for (let y = 0; y < bgLineCount; y++) {
+        let t = y / (bgLineCount - 1);
+        let nowY = height * t;
+
+        NYSetColorLerp(bgHueA, bgSatA, bgBriA, bgHueB, bgSatB, bgBriB, t);
+        NYDotLine(0, nowY, width, nowY);
+
+        if (y % 10 === 0) await sleep(1); // Small delay to visualize drawing
+    }
+    dotDensity = lastDotDensity; // Restore original dot density
+
+    // Subdivide canvas into sections for bowls
+    let xCount = floor(random(1, 3)); // Number of columns (1 or 2)
+    let yCount = floor(random(1, 3)); // Number of rows (1 or 2)
+
+    let padding = min(width, height) * paddingRatio;
+
+    let rectWidth = (width - 2 * padding) / xCount;
+    let rectHeight = (height - 2 * padding) / yCount;
+
+    for (let x = 0; x < xCount; x++) {
+        for (let y = 0; y < yCount; y++) {
+
+            let startX = rectWidth * x + padding;
+            let startY = rectHeight * y + padding;
+
+            // Subdivide the current section further to create multiple bowl areas
+            let rects = SubdivideRect(startX, startY, rectWidth, rectHeight, 0);
+
+            for (let r = 0; r < rects.length; r++) {
+                let rectObj = rects[r];
+                let newBowl = new PlantBowl(rectObj.x, rectObj.y, rectObj.w, rectObj.h);
+                bowls.push(newBowl);
+            }
+        }
+    }
+
+    // Draw bowls first
+    for (let i = 0; i < bowls.length; i++) {
+        if (bowls[i].bowlType === 3) // Empty bowl type, skip drawing bowl
+            continue;
+
+        if (bowls[i].bowlType <= 1) { // Rectangular bowl
+            await bowls[i].drawBowlRect();
+        } else if (bowls[i].bowlType === 2) { // Circular bowl
+            await bowls[i].drawBowlRound();
+        }
+        await sleep(1);
+    }
+
+    // Sort bowls by plant size (smallest first) to ensure plants are drawn on top of smaller bowls
+    bowls.sort(function (a, b) {
+        return a.plantSize - b.plantSize; // Ascending sort by plantSize
+    });
+
+    // Draw plants
+    for (let i = 0; i < bowls.length; i++) {
+        if (bowls[i].bowlType === 3) // Empty bowl type, skip drawing plant too
+            continue;
+
+        bowls[i].drawPlant();
+        await sleep(1); // Small delay for drawing effect
+    }
+}
+
+
+function SubdivideRect(_x, _y, _width, _height, _depth) {
+    let doSplit = random(0, 1) < 0.9; // 90% chance to split
+
+    if (_depth === 0) doSplit = true; // Always split at the initial depth
+    if (min(_width, _height) < 120) doSplit = false; // Stop splitting if rect is too small
+
+    if (doSplit) {
+        let splitRatio = random(0.4, 0.6); // Split between 40% and 60%
+
+        if (random() < 0.5) { // Split horizontally
+            let rectA = SubdivideRect(_x, _y, _width * splitRatio, _height, _depth + 1);
+            let rectB = SubdivideRect(_x + _width * splitRatio, _y, _width * (1 - splitRatio), _height, _depth + 1);
+            return rectA.concat(rectB);
+        } else { // Split vertically
+            let rectA = SubdivideRect(_x, _y, _width, _height * splitRatio, _depth + 1);
+            let rectB = SubdivideRect(_x, _y + _height * splitRatio, _width, _height * (1 - splitRatio), _depth + 1);
+            return rectA.concat(rectB);
+        }
+    } else {
+        return [{ x: _x, y: _y, w: _width, h: _height, depth: _depth }]; // Return the current rectangle
+    }
+}
+
+function draw() {
+    // This draw function is intentionally left empty if the sketch is meant to draw once in setup.
+    // If you plan for animations or continuous drawing, add your code here.
+}
+
+
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function keyPressed(e) {
+    if (e.key === 's' || e.key === 'S') { // Save on 's' or 'S' key press
+        // Check if fxhash is defined, otherwise use a generic name
+        let filename = `succulent-${width}-${height}`;
+        if (typeof fxhash !== 'undefined') {
+            filename += `-${fxhash}`;
+        }
+        saveCanvas(`${filename}.png`);
+    }
+}
